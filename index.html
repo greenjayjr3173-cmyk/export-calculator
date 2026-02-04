@@ -1,34 +1,75 @@
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>수출 전략 프로 | Export Strategy Pro</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <title>Japan Export Simulator</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700&display=swap');
-        body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif; }
-        .toss-blue { color: #3182f6; }
-        .bg-toss-blue { background-color: #3182f6; }
-        .border-toss-blue { border-color: #3182f6; }
+        :root { --primary: #2563EB; --bg: #F3F4F6; --card: #FFFFFF; --text: #1F2937; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 20px; display: flex; justify-content: center; }
+        .container { max-width: 480px; width: 100%; background: var(--card); padding: 24px; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        h1 { font-size: 20px; text-align: center; margin-bottom: 24px; color: var(--primary); }
+        .input-group { margin-bottom: 16px; }
+        label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: #4B5563; }
+        input { width: 100%; padding: 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
+        button { width: 100%; padding: 14px; background-color: var(--primary); color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        button:active { transform: scale(0.98); }
+        .result-section { margin-top: 24px; padding-top: 20px; border-top: 2px dashed #E5E7EB; display: none; }
+        .result-card { background: #EFF6FF; padding: 16px; border-radius: 8px; margin-bottom: 12px; }
+        .result-title { font-size: 12px; color: #6B7280; font-weight: 600; }
+        .result-value { font-size: 20px; font-weight: 800; color: var(--primary); margin-top: 4px; }
+        .sub-text { font-size: 11px; color: #6B7280; margin-top: 2px; }
+        .margin-tag { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-left: 8px; }
+        .tag-good { background: #D1FAE5; color: #065F46; }
+        .tag-bad { background: #FEE2E2; color: #991B1B; }
     </style>
-<script type="importmap">
-{
-  "imports": {
-    "react": "https://esm.sh/react@^19.2.4",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
-    "react/": "https://esm.sh/react@^19.2.4/",
-    "@google/genai": "https://esm.sh/@google/genai@^1.39.0",
-    "recharts": "https://esm.sh/recharts@^3.7.0"
-  }
-}
-</script>
-<link rel="stylesheet" href="/index.css">
 </head>
-<body class="bg-[#f2f4f6] text-[#191f28]">
-    <div id="root"></div>
-<script type="module" src="/index.tsx"></script>
+<body>
+<div class="container">
+    <h1>🇯🇵 수출 가격 시뮬레이터</h1>
+    <div class="input-group"><label>제품 원가 (KRW)</label><input type="number" id="costKrw" placeholder="예: 15000"></div>
+    <div class="input-group"><label>제조사 마진율 (%)</label><input type="number" id="marginRate" value="30"></div>
+    <div class="input-group"><label>환율 (KRW/USD)</label><input type="number" id="exRateUsd" placeholder="예: 1350"></div>
+    <div class="input-group"><label>환율 (JPY/USD)</label><input type="number" id="exRateJpy" placeholder="예: 150"></div>
+    <div class="input-group"><label>운송비 (USD / 개당)</label><input type="number" id="freight" value="2.5"></div>
+    <div class="input-group"><label>일본 관세율 (%)</label><input type="number" id="dutyRate" value="10"></div>
+    <div class="input-group"><label>일본 예상 판매가 (JPY)</label><input type="number" id="retailPrice" placeholder="예: 3900"></div>
+    <button onclick="calculate()">시뮬레이션 시작</button>
+    <div id="resultArea" class="result-section">
+        <h3>📊 분석 결과</h3>
+        <div class="result-card"><div class="result-title">제안 FOB 가격 (USD)</div><div class="result-value" id="resFob">$0.00</div><div class="sub-text">한국항 선적 기준</div></div>
+        <div class="result-card"><div class="result-title">DDP 도착 원가 (JPY)</div><div class="result-value" id="resDdp">¥0</div><div class="sub-text">관세 및 소비세(10%) 포함</div></div>
+        <div class="result-card" style="background: #FFFBEB;"><div class="result-title">바이어 예상 마진 (JPY)</div><div class="result-value" style="color: #B45309;" id="resBuyerMargin">¥0 <span id="marginTag" class="margin-tag"></span></div><div class="sub-text" id="resMarginPercent">마진율: 0%</div></div>
+    </div>
+</div>
+<script>
+    function calculate() {
+        const costKrw = Number(document.getElementById('costKrw').value);
+        const marginRate = Number(document.getElementById('marginRate').value) / 100;
+        const exRateUsd = Number(document.getElementById('exRateUsd').value);
+        const exRateJpy = Number(document.getElementById('exRateJpy').value);
+        const freight = Number(document.getElementById('freight').value);
+        const dutyRate = Number(document.getElementById('dutyRate').value) / 100;
+        const retailPrice = Number(document.getElementById('retailPrice').value);
+        if (!costKrw || !exRateUsd || !exRateJpy) { alert("원가와 환율 정보를 입력해주세요."); return; }
+        const exwKrw = costKrw * (1 + marginRate);
+        const fobUsd = exwKrw / exRateUsd;
+        const cifUsd = fobUsd + freight;
+        const cifJpy = cifUsd * exRateJpy;
+        const dutyJpy = cifJpy * dutyRate;
+        const taxJpy = (cifJpy + dutyJpy) * 0.10;
+        const ddpJpy = cifJpy + dutyJpy + taxJpy;
+        const buyerProfit = retailPrice - ddpJpy;
+        const buyerMarginPercent = (buyerProfit / retailPrice) * 100;
+        document.getElementById('resFob').innerText = `$${fobUsd.toFixed(2)}`;
+        document.getElementById('resDdp').innerText = `¥${Math.round(ddpJpy).toLocaleString()}`;
+        document.getElementById('resBuyerMargin').innerHTML = `¥${Math.round(buyerProfit).toLocaleString()} <span id='dynamicTag' class='margin-tag'></span>`;
+        document.getElementById('resMarginPercent').innerText = `마진율: ${buyerMarginPercent.toFixed(1)}%`;
+        const tag = document.getElementById('dynamicTag');
+        if (buyerMarginPercent >= 30) { tag.innerText = "Good Profit"; tag.className = "margin-tag tag-good"; } 
+        else { tag.innerText = "Low Margin"; tag.className = "margin-tag tag-bad"; }
+        document.getElementById('resultArea').style.display = 'block';
+    }
+</script>
 </body>
 </html>
